@@ -185,12 +185,9 @@ class LessSquares:
             self.pinv = np.hstack((self.pinv,zn.T))  
         else:
             def nuller(n,x0=[]):
-                if x0 == []:
-                    #x0 = self.A @ self.pinv[:,-1]
-                    #x0[-1] -= 1
+                if np.array_equal(x0,[]):
                     x0 = self.A @ np.sum(self.pinv,axis=1)
                     x0 -= 1
-                    #x0 = x0/np.linalg.norm(x0)
                 else:
                     x0 -= self.A @ (self.pinv @ x0)
                 if n>1:
@@ -199,17 +196,8 @@ class LessSquares:
                     return x0/np.linalg.norm(x0)
             yn = nuller(max(25-self.A.shape[0]+self.A.shape[1],2))
             zn = yn.flatten()
-            #print('Pz:',np.linalg.norm(self.pinv @ zn))
-            #print('zA:',np.linalg.norm(zn @ self.A))
-            if True==False and max(15-self.A.shape[0]+self.A.shape[1],3)>30:
-                An,Pn = self._expander_conditioner(self.A,self.pinv,zn.flatten(),yn.flatten())
-                #print('yo',yn.shape)
-                #zn = yn.flatten()
-                self.A = An
-                self.pinv = Pn
-            else:
-                self.A = np.hstack((self.A,zn[:,np.newaxis]))
-                self.pinv = np.vstack((self.pinv,yn))
+            self.A = np.hstack((self.A,zn[:,np.newaxis]))
+            self.pinv = np.vstack((self.pinv,yn))
             self.norms = np.append(self.norms,1)
     
     def _expander_conditioner(self,A,P,h,z):
@@ -228,29 +216,9 @@ class LessSquares:
         p1 -= np.outer(dP@z,aph)
         p2 = np.outer(dP@h,zap)
         p2 -= np.outer(dP@zap,h)
-        #p1p = np.outer(Pf@aph,z)
-        #p1pt = np.outer(Pf@z,aph)
-        #p1e = np.outer(E@aph,z)
-        #p1et = np.outer(E@z,aph)
-        #p2p = np.outer(Pf@h,zap)
-        #p2pt = np.outer(Pf@zap,h)
-        #p2e = np.outer(E@h,zap)
-        #p2et = np.outer(E@zap,h)
-        #tau = np.zeros(shape=(E.shape[0],E.shape[0]))
-        #fil = (P@h) - (z@A)
         tau = np.outer(dP@z,h) - np.outer(dP@h,z)
-        #taue = np.outer(E@z,h) - np.outer(E@h,z)    
-        #print('f',fil.shape)
-        #tau[:-1,-1] = fil
-        #tau[-1,:-1] = -fil
-        #print(p2e-p2et)
-        #return Pf - E + (p2p - p2pt + p1p - p1pt) - (p2e - p2et + p1e - p1et)
         Af = np.hstack((A,h[:,np.newaxis]))
-        ##return (Pf-E)+(Pf-E)@(Af@E - (Af@E).T)+taup-taue
-        #print(np.linalg.norm(E))
-        #return dP
-        return Af,dP#dP-dP@((Af@dP)-(Af@dP).T)#dP-tau-p1-p2# - ( (p2p - p2pt + p1p - p1pt) - (p2e - p2et + p1e - p1et))
-        ##return (Pf-E)+ taup - taue + ( (p2p - p2pt + p1p - p1pt) - (p2e - p2et + p1e - p1et))
+        return Af,dP
 
     def append(self, vector, axis):
         """
@@ -274,19 +242,19 @@ class LessSquares:
         """
         self.expand(axis)
         intended_axis = self._intended_axis(axis)
+        vector = self._validate_vector(vector, intended_axis, axis)
         if intended_axis == 0:
-            rescaling = np.sqrt(1 + ((vector/(self.norms[:,np.newaxis])).flatten())**2)
+            rescaling = np.sqrt(1 + ((vector/(self.norms)).flatten())**2)
             self.norms *= rescaling
-            vector = vector/(self.norms[:,np.newaxis])
+            vector = vector/(self.norms)
             rescaling = rescaling
             if np.any(np.abs(rescaling)>10000):
-                warnings.warn('The values in this update will dominate several collumns, resulting in loss of precision. Data from A will be lost as it is successively manipulated. Even stock solvers like numpy will fail to solve this well and will fail the checks. Feel free to examine the results of this rescaled matrix with numpy applied. We should maybe create a safe mode that rejects inputs like this gracefully. Auto-outlier or something.')
-            self.A = self.A/(rescaling.T)
+                warnings.warn('The values in this update will dominate several collumns, resulting in loss of precision. Even stock solvers like numpy will fail to solve this well and will fail the checks. Feel free to examine the results of this rescaled matrix with numpy applied. We should maybe create a safe mode that rejects inputs like this gracefully. Auto-outlier or something. You can show this to yourself by checking that z increases as k increases for A = np.random.normal(size=(10,10))*np.exp(k*np.random.normal(size=10)); z = np.linalg.norm(np.eye(10)-np.linalg.pinv(A) @ A)')
+            self.A = self.A/(rescaling[np.newaxis,:])
             self.pinv = self.pinv*rescaling[:,np.newaxis]
-            vector = self._validate_vector(vector, intended_axis, axis)
             self._blank_update(vector,-1)
         else:
-            current_val = self.A[:,-1,np.newaxis]
+            current_val = self.A[:,-1]
             updated_col = vector-(current_val*self.norms[-1])
             self.add(updated_col,-1,axis,_append_mode=True)
     
@@ -322,9 +290,12 @@ class LessSquares:
         #input correction
         
         intended_axis = self._intended_axis(axis)
-        index = self._validate_index(index, intended_axis, axis)
-        vector = self._validate_vector(vector, intended_axis, axis)
         
+        if not _append_mode:
+            vector = self._validate_vector(vector, intended_axis, axis)
+            index = self._validate_index(index, intended_axis, axis)
+        
+        #This variable exists for readability
         collumn_update = ((intended_axis+1)%2 == 0)
         
         #norm and vector updates
@@ -339,17 +310,7 @@ class LessSquares:
             self.pinv *= (normp/self.norms)[:,np.newaxis]
             self.norms = normp
             
-            v = vector/self.norms           
-            """
-            mt = (self.A[index,:]*self.norms)
-            mtp = mt + vector
-            delta_nk1 = np.sqrt((mt+mtp)*vector)
-            rescaling = (delta_nk1/self.norms)
-            self.A -= self.A*(delta_nk1/(delta_nk1+self.norms))
-            self.pinv += self.pinv*rescaling[:,np.newaxis]
-            self.norms = self.norms+delta_nk1
             v = vector/self.norms
-            """
         
         if collumn_update:#v is indexer
             if self.A.shape[0] == self.A.shape[1]:
@@ -374,10 +335,7 @@ class LessSquares:
                 gtg = np.inner(gamma,gamma)
                 oputg = 1+utg
                 Zinv = np.array([[oputg,-utg-utAA_pu],[-gtg,oputg+gtg]])
-                #print(utAA_pu,gtg)
-                #print(Zinv)
                 Zdet = (Zinv[0,0]*Zinv[1,1])-(Zinv[1,0]*Zinv[0,1])
-                #print('detdelt',Zdet/(Zinv[0,0]*(1-Zinv[0,1])-(1-Zinv[0,0])*Zinv[0,1]))
                 if np.abs(Zdet) < 0.0000000000001:
                     print('this might be outdated, lets see if this ever flags')
                     tz = (self.pinv.T@self.pinv[:,index])
@@ -414,7 +372,6 @@ class LessSquares:
             rp = ((u @ self.pinv)-u[index]*gamma)*scalar
             guess = np.outer(-u,rp)
             guess[index,:] -= gamma
-            #print('TESTFCN FOR GAMMA A+ RHS',gamma@(self.A[:,index]-v_local))
             self.pinv += guess
         else:
             scalar = (1+u[index])
@@ -442,7 +399,7 @@ class LessSquares:
             self.pinv += np.outer(A_pu,R)
             self.A[:,index] += u
         elif np.isclose(gtg,0):
-            print('it fucked')
+            print('LessSquares object is being operated on with null pseudoinverse entries. Inform developers of what you did to trigger this.')
             self.A[:,index] += u
         else:
             A_pg = self.pinv@gamma
@@ -452,9 +409,6 @@ class LessSquares:
             Zdet = (Zinv[0,0]*Zinv[1,1])-(Zinv[1,0]*Zinv[0,1])
             guess = np.outer(A_pg,-gamma/gtg)
             guess += np.outer( gtg*A_pu - oputg*A_pg, (-u-(oputg/gtg)*gamma + utAA_p)/Zdet)
-            #guess += np.outer( gtg*A_pu - oputg*A_pg, ((1-(oputg/gtg))*gamma + utAA_p)/Zdet)
-            #print('rouge term',(np.outer(gtg*A_pu - oputg*A_pg,-u)/Zdet)/(self.pinv))
-            #print('o',gamma)
             self.pinv += guess
             self.A[:,index] += u
 
@@ -462,11 +416,8 @@ class LessSquares:
         c = self.pinv @ v
         v_local = self.A @ c
         v_nonlocal = v-v_local
-        #if np.max(np.abs(v_nonlocal))<0.001:
         self._local_update(v_local,c,index)
         self._non_local_update(v_nonlocal,index)
-        #else:
-        #    self._non_local_update(v,index)
 
     def _blank_update(self,v,index):
         """A special case of the add operation"""
@@ -586,7 +537,6 @@ class LessSquares:
             c4 = (A_p @ A).T - A_p @ A
             return np.max(np.abs(c1)),np.max(np.abs(c2)),np.max(np.abs(c3)),np.max(np.abs(c4))
         else:
-            #c2 = np.max(((self.pinv @ self.A)-np.eye(self.A.shape[1]))@self.pinv)
             c2 = np.max(((self.pinv @ self.A)-np.eye(self.A.shape[1])))
             return c2>self.err_tol
     

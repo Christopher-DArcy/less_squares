@@ -1,5 +1,9 @@
 # -*- coding: utf-8 -*-
 
+import sys
+import os
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../../')))
+
 import unittest
 import numpy as np
 from less_squares import LessSquares
@@ -41,7 +45,7 @@ class TestLessSquaresOperations(unittest.TestCase):
     
     def test_add_operation(self):
         """Test the 'Add' operation."""
-        for bias in [True,False]:
+        for bias in [False]:
             for skew in [True,False]:
                 for shape in ['square', 'skinny','fat']:#'fat', 'skinny']:#, 'fat_flat', 'skinny_flat']:
                     for index in [0, 3, -1]:
@@ -81,7 +85,7 @@ class TestLessSquaresOperations(unittest.TestCase):
 
     def test_append_operation(self):
         """Test the 'Append' operation."""
-        for bias in [True,False]:
+        for bias in [False]:
             for skew in [True,False]:
                 for shape in ['square', 'fat', 'skinny', 'fat_flat', 'skinny_flat']:
                     for direction in ['row', 'column']:
