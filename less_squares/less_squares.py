@@ -27,13 +27,6 @@ matrix.
 import numpy as np
 import warnings
 
-def full_check(A,A_p):
-    c1 = A @ A_p @ A - A
-    c2 = A_p @ A @ A_p - A_p
-    c3 = (A @ A_p).T - (A @ A_p)
-    c4 = (A_p @ A).T - A_p @ A
-    return np.max(np.abs(c1)),np.max(np.abs(c2)),np.max(np.abs(c3)),np.max(np.abs(c4))
-
 class LessSquares:
     def __init__(self, matrix):
         """
@@ -87,7 +80,7 @@ class LessSquares:
         self.op_counter += 1
         if self.checking == True and self.op_counter % self.check_period:
             if self.check('fast'):
-                print('check-failed')
+                warnings.warn('check-failed')
                 #self.pinv = np.linalg.pinv(self.A)
     
     def _validate_index(self, index, intended_axis, axis):
@@ -135,7 +128,6 @@ class LessSquares:
                 raise TypeError("do later")
             elif 'matrix' in k:
                 raise TypeError("do later")
-        print('here',[k for k in inputs])
     
     def _intended_axis(self,axis):
         """
@@ -205,11 +197,9 @@ class LessSquares:
         Needs more umph
 
         """
-        #At = A[:-1,:]
         Pf = np.vstack((P,z[np.newaxis,:]))
         aph = (A@(P@h))
         zap = ((z @ A) @ P)
-        #print('zap',z@A)
         E = np.vstack((np.outer(P@h,z),zap))
         dP = (Pf-E)
         p1 = np.outer(dP@aph,z)
@@ -337,7 +327,7 @@ class LessSquares:
                 Zinv = np.array([[oputg,-utg-utAA_pu],[-gtg,oputg+gtg]])
                 Zdet = (Zinv[0,0]*Zinv[1,1])-(Zinv[1,0]*Zinv[0,1])
                 if np.abs(Zdet) < 0.0000000000001:
-                    print('this might be outdated, lets see if this ever flags')
+                    warnings.warn('Unexpected singularity in data, inform developers')
                     tz = (self.pinv.T@self.pinv[:,index])
                     tz = -tz/tz[index]
                     if self.A.shape[1]<=self.A.shape[0]:
@@ -399,7 +389,7 @@ class LessSquares:
             self.pinv += np.outer(A_pu,R)
             self.A[:,index] += u
         elif np.isclose(gtg,0):
-            print('LessSquares object is being operated on with null pseudoinverse entries. Inform developers of what you did to trigger this.')
+            warnings.warn('LessSquares object is being operated on with null pseudoinverse entries. Inform developers of what you did to trigger this.')
             self.A[:,index] += u
         else:
             A_pg = self.pinv@gamma
