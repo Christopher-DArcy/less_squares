@@ -1,6 +1,6 @@
 # less_squares
 
-`less_squares` is a Python package for efficient and dynamic manipulation of matrices, focusing on operations like updating pseudoinverses, adding or removing rows/columns, and checking matrix properties.
+The less_squares object wraps a numpy matrix and will dynamically update the matrix pseudoinverse with O(nm) cost when rows are are modified in the underlying matrix. This allows for regression operations to be performed at low cost on regularly updated data-sets.
 
 ## Features
 
